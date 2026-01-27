@@ -44,7 +44,11 @@ public class BitsdojoWindowPlugin: NSObject, FlutterPlugin {
     guard let registrar = self.registrar else { return }
     // Try to find the window associated with this engine
     if let window = registrar.viewController?.view.window ?? NSApp.windows.first(where: { $0.contentViewController == registrar.viewController }) {
+        print("[BitsdojoWindowPlugin] Window associated successfully: \(window)")
         BitsdojoWindowPlugin.instances.setObject(self, forKey: window)
+        
+        // 🔧 Ensure window is registered with the native API
+        BitsdojoWindowPlugin.registerWindow(window)
         
         self.startLifecycleMonitoring(window: window)
         
@@ -70,9 +74,9 @@ public class BitsdojoWindowPlugin: NSObject, FlutterPlugin {
             ])
         }
     } else {
-
-        // Window not ready yet, try again in next run loop
-        DispatchQueue.main.async { [weak self] in
+        // Window not ready yet, try again with a SMALL delay to prevent high-frequency recursion
+        // that could potentially hang the UI thread in merged engine mode.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) { [weak self] in
             self?.associateAndTrySendReady()
         }
     }
@@ -126,14 +130,11 @@ public class BitsdojoWindowPlugin: NSObject, FlutterPlugin {
       var newVisibleCount = 0
       
       // Count visible windows (occlusionState contains .visible)
-      let iterator = instances.objectEnumerator()
-      while let plugin = iterator?.nextObject() as? BitsdojoWindowPlugin {
-          for window in instances.keyEnumerator() {
-              if let win = window as? NSWindow, instances.object(forKey: win) === plugin {
-                  if win.occlusionState.contains(.visible) {
-                      newVisibleCount += 1
-                  }
-              }
+      // 🔧 Optimized iteration to avoid O(N^2) and potential enumerator instability
+      let keys = instances.keyEnumerator()
+      while let window = keys.nextObject() as? NSWindow {
+          if window.occlusionState.contains(.visible) {
+              newVisibleCount += 1
           }
       }
       visibleWindowCount = newVisibleCount
@@ -177,7 +178,12 @@ public class BitsdojoWindowPlugin: NSObject, FlutterPlugin {
               binaryMessenger: registrar.messenger,
               codec: FlutterStringCodec.sharedInstance()
           )
-          lifecycleChannel.sendMessage(event)
+          
+          // 🔧 Send asynchronously to avoid blocking the UI thread during high-frequency events
+          // and to prevent deadlocks in merged engine mode.
+          DispatchQueue.main.async {
+              lifecycleChannel.sendMessage(event)
+          }
       }
   }
 
