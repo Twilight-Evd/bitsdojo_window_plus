@@ -30,10 +30,15 @@ public class BitsdojoWindowPlugin: NSObject, FlutterPlugin {
     instance.associateAndTrySendReady()
     
     // Auto-detect and register primary window
-    DispatchQueue.main.async {
+    // 🔧 Add delay to ensure Flutter engine is fully initialized on first launch
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+      BitsdojoWindowPlugin.isReady = true
       MultiWindowManager.shared.autoDetectPrimaryWindow()
     }
   }
+  
+  // 🔧 Safety flag to prevent early lifecycle events
+  private static var isReady = false
 
   private func associateAndTrySendReady() {
     guard let registrar = self.registrar else { return }
@@ -159,6 +164,13 @@ public class BitsdojoWindowPlugin: NSObject, FlutterPlugin {
       let iterator = instances.objectEnumerator()
       while let plugin = iterator?.nextObject() as? BitsdojoWindowPlugin {
           guard let registrar = plugin.registrar else { continue }
+          
+          
+          // 🔧 Only send if the view controller is ready (engine initialized)
+          guard registrar.viewController != nil else { continue }
+          
+          // 🔧 Gate lifecycle events until initialization is complete
+          guard BitsdojoWindowPlugin.isReady else { continue }
           
           let lifecycleChannel = FlutterBasicMessageChannel(
               name: "flutter/lifecycle",

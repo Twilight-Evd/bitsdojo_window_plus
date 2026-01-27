@@ -62,7 +62,6 @@ int _normalTitleBarHeight = 28;
       currentHeight = controller.titleBarHeight;
     }
   }
-  printf("Current height: %f\n", currentHeight);
   // Calculate start X based on height: 30pt -> 12pt, 50pt -> 21pt
   CGFloat startX = 8.0;
   if (currentHeight > 28) {

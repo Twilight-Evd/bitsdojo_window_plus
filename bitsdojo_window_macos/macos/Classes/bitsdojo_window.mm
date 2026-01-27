@@ -133,19 +133,19 @@ BDWStatus getScreenInfoForWindow(NSWindow *window, BDWScreenInfo *screenInfo) {
   }
   auto workingScreenRect = controller.workingScreenRect;
   auto fullScreenRect = controller.fullScreenRect;
-  auto menuBarHeight = fullScreenRect.size.height -
-                       workingScreenRect.size.height -
-                       workingScreenRect.origin.y;
+  auto menuBarHeight =
+      (fullScreenRect.origin.y + fullScreenRect.size.height) -
+      (workingScreenRect.origin.y + workingScreenRect.size.height);
   BDWRect *workingRect = screenInfo->workingRect;
   BDWRect *fullRect = screenInfo->fullRect;
   workingRect->top = menuBarHeight;
-  workingRect->left = workingScreenRect.origin.x;
+  workingRect->left = workingScreenRect.origin.x - fullScreenRect.origin.x;
   workingRect->bottom = workingRect->top + workingScreenRect.size.height;
   workingRect->right = workingRect->left + workingScreenRect.size.width;
-  fullRect->left = fullScreenRect.origin.x;
-  fullRect->right = fullRect->left + fullScreenRect.size.width;
-  fullRect->top = fullScreenRect.origin.y;
-  fullRect->bottom = fullRect->top + fullScreenRect.size.height;
+  fullRect->left = 0;
+  fullRect->right = fullScreenRect.size.width;
+  fullRect->top = 0;
+  fullRect->bottom = fullScreenRect.size.height;
   return BDW_SUCCESS;
 }
 
@@ -153,8 +153,8 @@ BDWStatus setPositionForWindow(NSWindow *window, BDWOffset *offset) {
   runOnMainThread(^{
     NSPoint position;
     auto screen = [window screen];
-    auto fullScreenRect = [screen visibleFrame];
-    position.x = offset->x;
+    auto fullScreenRect = [screen frame];
+    position.x = fullScreenRect.origin.x + offset->x;
     position.y =
         fullScreenRect.origin.y + fullScreenRect.size.height - offset->y;
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -191,7 +191,8 @@ BDWStatus getRectForWindow(NSWindow *window, BDWRect *rect) {
   }
   auto workingScreenRect = controller.workingScreenRect;
   NSRect frame = controller.windowFrame;
-  rect->left = frame.origin.x;
+  NSRect fullScreenRect = controller.fullScreenRect;
+  rect->left = frame.origin.x - fullScreenRect.origin.x;
   auto frameTop = frame.origin.y + frame.size.height;
   auto workingScreenTop =
       workingScreenRect.origin.y + workingScreenRect.size.height;

@@ -58,20 +58,12 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
     SEL titleBarHeightSelector =
         NSSelectorFromString(@"bitsdojo_window_title_bar_height");
 
-    NSLog(@"[Bitsdojo] Window Class: %@", [self.window className]);
-    NSLog(@"[Bitsdojo] Selector: %@",
-          NSStringFromSelector(titleBarHeightSelector));
-
     if ([self.window respondsToSelector:titleBarHeightSelector]) {
-      NSLog(@"[Bitsdojo] Window responds to selector!");
       // Use dynamic dispatch to call the Swift method
       CGFloat height = ((CGFloat(*)(
           id, SEL))[self.window methodForSelector:titleBarHeightSelector])(
           self.window, titleBarHeightSelector);
       self.titleBarHeight = height;
-      NSLog(@"[Bitsdojo] Height from Swift: %f", height);
-    } else {
-      NSLog(@"[Bitsdojo] Window does NOT respond to selector.");
     }
 
     self.canBeShown = NO;
@@ -118,6 +110,9 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
   [self.window removeObserver:self forKeyPath:@"opaque"];
   [self.window removeObserver:self forKeyPath:@"backgroundColor"];
 
+  // 🔧 Explicitly invalidate timer
+  [self stopFullScreenTransitionMonitoring];
+
   @try {
     NSView *contentView = [self.window contentView];
     [contentView.layer removeObserver:self forKeyPath:@"backgroundColor"];
@@ -154,7 +149,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
 }
 
 - (void)windowDidResize:(NSNotification *)notification {
-  // NSLog(@"[Bitsdojo] windowDidResize");
   NSWindow *resizedWindow = notification.object;
   if ([resizedWindow isKindOfClass:[NSWindow class]]) {
     [self setupWindowRects];
@@ -167,55 +161,41 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
 }
 
 - (void)windowDidBecomeVisible:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo][DEBUG_LIFECYCLE] windowDidBecomeVisible");
   self.isVisible = YES;
 }
 
 - (void)windowDidBecomeHidden:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo][DEBUG_LIFECYCLE] windowDidBecomeHidden");
   self.isVisible = NO;
 }
 
 - (void)windowDidChangeScreen:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo][DEBUG_LIFECYCLE] windowDidChangeScreen");
   [self onScreenChange];
 }
 
 - (void)windowDidChangeBackingProperties:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo][DEBUG_LIFECYCLE] windowDidChangeBackingProperties");
   [self onScreenChange];
 }
 
 - (void)windowDidMiniaturize:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo][DEBUG_LIFECYCLE] windowDidMiniaturize");
   [self handleWindowChanges];
 }
 - (void)windowDidDeminiaturize:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo][DEBUG_LIFECYCLE] windowDidDeminiaturize");
   [self handleWindowChanges];
 }
 - (void)windowDidEndLiveResize:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo][DEBUG_LIFECYCLE] windowDidEndLiveResize");
   [self handleWindowChanges];
 }
 
 - (void)windowDidBecomeKey:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo] windowDidBecomeKey");
 }
 
 - (void)windowDidResignKey:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo] windowDidResignKey");
 }
 
 - (void)appDidBecomeActive:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo][DEBUG_LIFECYCLE] NSApplicationDidBecomeActiveNotification "
-        @"received");
 }
 
 - (void)forceTransparency {
-  NSLog(@"[Bitsdojo] forceTransparency called");
-
-  // 🔧 强制窗口透明
   [self.window setOpaque:NO];
   [self.window setBackgroundColor:[NSColor clearColor]];
 
@@ -225,7 +205,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
     [[contentView layer] setBackgroundColor:[[NSColor clearColor] CGColor]];
     [[contentView layer] setOpaque:NO];
 
-    // 🔧 遍历所有 Flutter 视图并强制透明
     for (NSView *subview in [contentView subviews]) {
       NSString *className = NSStringFromClass([subview class]);
       if ([className containsString:@"FlutterView"] ||
@@ -237,7 +216,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
     }
   }
 
-  // 🔧 强制设置 contentViewController 的 view
   NSViewController *controller = [self.window contentViewController];
   if (controller && [controller view]) {
     NSView *view = [controller view];
@@ -247,31 +225,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
   }
 }
 
-// - (void)forceTransparency {
-//   if ([self.window isOpaque]) {
-//     [self.window setOpaque:NO];
-//   }
-//   if (![[self.window backgroundColor] isEqual:[NSColor clearColor]]) {
-//     [self.window setBackgroundColor:[NSColor clearColor]];
-//   }
-
-//   NSView *contentView = [self.window contentView];
-//   if (contentView) {
-//     if (![contentView wantsLayer]) {
-//       [contentView setWantsLayer:YES];
-//     }
-//     if (!CGColorEqualToColor([[contentView layer] backgroundColor],
-//                              [[NSColor clearColor] CGColor])) {
-//       [[contentView layer] setBackgroundColor:[[NSColor clearColor]
-//       CGColor]];
-//     }
-//     if ([[contentView layer] isOpaque]) {
-//       [[contentView layer] setOpaque:NO];
-//     }
-//   }
-// }
-// 🔧 将这三个方法添加到你的 .mm 文件中（在 @implementation 块内）
-
 - (void)stopFullScreenTransitionMonitoring {
   if (self.fullScreenTransitionTimer) {
     [self.fullScreenTransitionTimer invalidate];
@@ -280,7 +233,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
 }
 
 - (void)enforceTransparencyDuringTransition {
-  // 只强制窗口级别的透明,不触碰子视图
   if ([self.window isOpaque]) {
     [self.window setOpaque:NO];
   }
@@ -288,7 +240,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
     [self.window setBackgroundColor:[NSColor clearColor]];
   }
 
-  // 确保 visualEffectView 保持在底层
   NSView *contentView = [self.window contentView];
   NSVisualEffectView *visualEffectView = nil;
 
@@ -300,7 +251,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
   }
 
   if (visualEffectView && visualEffectView.superview) {
-    // 检查是否还在底层,如果不是则重新排序
     NSArray *subviews = contentView.subviews;
     if (subviews.firstObject != visualEffectView) {
       [contentView sortSubviewsUsingFunction:ensureVisualEffectAtBottom
@@ -310,7 +260,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
 }
 
 - (void)applyBackgroundEffect:(int)effect {
-  NSLog(@"[Bitsdojo] applyBackgroundEffect: %d", effect);
   self.lastBackgroundEffect = effect;
   NSWindow *window = self.window;
   NSView *contentView = [window contentView];
@@ -337,7 +286,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
       [visualEffectView removeFromSuperview];
     }
   } else {
-    // 先设置窗口属性
     [window setOpaque:NO];
     [window setBackgroundColor:[NSColor clearColor]];
     [window setTitlebarAppearsTransparent:YES];
@@ -362,13 +310,11 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
             setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
         [visualEffectView setState:NSVisualEffectStateActive];
 
-        // 🔧 确保在最底层且设置 wantsLayer
         [visualEffectView setWantsLayer:YES];
         [contentView addSubview:visualEffectView
                      positioned:NSWindowBelow
                      relativeTo:nil];
 
-        // 🔧 强制排序，确保在所有 Flutter 视图之下
         [contentView
             sortSubviewsUsingFunction:ensureVisualEffectAtBottom
                               context:(__bridge void *)visualEffectView];
@@ -392,7 +338,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
       [visualEffectView setState:NSVisualEffectStateActive];
       [visualEffectView setBlendingMode:NSVisualEffectBlendingModeBehindWindow];
 
-      // 🔧 禁用隐式动画，避免过渡效果
       [CATransaction begin];
       [CATransaction setDisableActions:YES];
       [visualEffectView setNeedsDisplay:YES];
@@ -402,7 +347,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
 }
 
 - (void)windowWillEnterFullScreen:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo] windowWillEnterFullScreen");
 
   NSButton *closeButton =
       [self.window standardWindowButton:NSWindowCloseButton];
@@ -445,7 +389,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
     [self.fullScreenTransitionTimer invalidate];
   }
 
-  // 🔧 降低频率到 10fps，减少与系统动画冲突
   self.fullScreenTransitionTimer =
       [NSTimer scheduledTimerWithTimeInterval:0.1 // 10fps
                                        target:self
@@ -456,15 +399,11 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
 }
 
 - (void)windowDidEnterFullScreen:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo] windowDidEnterFullScreen");
-
   [self stopFullScreenTransitionMonitoring];
 
-  // 强制透明并重新应用效果
   [self forceTransparency];
   [self applyBackgroundEffect:self.lastBackgroundEffect];
 
-  // 🔧 只延迟一次重新应用即可
   dispatch_after(
       dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
       dispatch_get_main_queue(), ^{
@@ -479,12 +418,9 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
 }
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo] windowWillExitFullScreen");
-
   [self.window setHasShadow:NO];
   [self forceTransparency];
 
-  // 🔧 确保 visualEffectView 在最底层
   NSView *contentView = [self.window contentView];
   NSVisualEffectView *visualEffectView = nil;
 
@@ -518,8 +454,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification {
-  NSLog(@"[Bitsdojo] windowDidExitFullScreen");
-
   [self stopFullScreenTransitionMonitoring];
 
   [self forceTransparency];
@@ -536,10 +470,7 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
 }
 
 - (void)windowDidChangeOcclusionState:(NSNotification *)notification {
-  // NSLog(@"[Bitsdojo] windowDidChangeOcclusionState");
   if (self.window.occlusionState & NSWindowOcclusionStateVisible) {
-    NSLog(
-        @"[Bitsdojo][DEBUG_LIFECYCLE] Window became VISIBLE (Occlusion State)");
     self.isVisible = YES;
 
     // Debug App/Window State
@@ -548,17 +479,9 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
           [self.window isKeyWindow], [self.window isMainWindow],
           [NSApp isActive]);
 
-    // 🔧 Aggressive Wake Up Strategy Iteration 2
-
-    // If not Key, force it
-    if (![self.window isKeyWindow]) {
-      [self.window makeKeyAndOrderFront:nil];
-    }
-
-    // If App not active, force it
-    if (![NSApp isActive]) {
-      [NSApp activateIgnoringOtherApps:YES];
-    }
+    // 🔧 Aggressive Wake Up Strategy Iteration 2 REMOVED
+    // Forcing Key and Active fights the OS window manager.
+    // We only repaint to ensure content is up to date when revealed.
 
     // Force immediate repaint
     [self.window display];
@@ -572,7 +495,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
     // Keep the explicit repaint call just in case
     [self.window.contentView setNeedsDisplay:YES];
   } else {
-    NSLog(@"[Bitsdojo][DEBUG_LIFECYCLE] Window became OCCLUDED");
     self.isVisible = NO;
   }
 }
