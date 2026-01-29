@@ -358,13 +358,10 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
   self.wasMiniaturizeButtonVisible = !minButton.isHidden;
   self.wasZoomButtonVisible = !zoomButton.isHidden;
 
-  // 🔧 禁用阴影
   [self.window setHasShadow:NO];
 
-  // 🔧 立即强制透明
   [self forceTransparency];
 
-  // 🔧 确保在最底层
   NSView *contentView = [self.window contentView];
   NSVisualEffectView *visualEffectView = nil;
 
@@ -380,7 +377,6 @@ NSComparisonResult ensureVisualEffectAtBottom(__kindof NSView *_Nonnull view1,
                                    context:(__bridge void *)visualEffectView];
   }
 
-  // 🔧 使用更低频率的监控（从 60fps 降至 10fps）
   [self startFullScreenTransitionMonitoring];
 }
 
